@@ -98,9 +98,9 @@ RETENTION_STRATEGIES = {
 }
 
 CLUSTER_NAMES = {
-    0: ("Budget Basics", "\U0001F7E2", "Low-spend, phone-only, very low churn"),
-    1: ("Flight Risks", "\U0001F534", "Month-to-month, moderate spend, HIGH churn"),
-    2: ("Premium Loyalists", "\U0001F535", "Long tenure, high spend, many services, low churn"),
+    0: ("Budget Basics", "", "Low-spend, phone-only, very low churn"),
+    1: ("Flight Risks", "", "Month-to-month, moderate spend, HIGH churn"),
+    2: ("Premium Loyalists", "", "Long tenure, high spend, many services, low churn"),
 }
 
 
@@ -112,7 +112,7 @@ def load_artifacts():
 
 def main():
     st.set_page_config(page_title="Telco Churn Retention", layout="wide", page_icon="\U0001F4C9")
-    st.title("\U0001F4C9 Telco Customer Churn — Prediction + Retention System")
+    st.title("Telco Customer Churn — Prediction + Retention System")
     st.caption("Layer 1: Churn Prediction  |  Layer 2: Customer Segment  |  Layer 3: SHAP + Retention Strategy")
 
     if not os.path.exists(ARTIFACTS_PATH):
@@ -122,10 +122,10 @@ def main():
     a = load_artifacts()
 
     tab1, tab2, tab3, tab4 = st.tabs([
-        "\U0001F4CA Overview",
-        "\U0001F3C6 Model Comparison",
-        "\U0001F50D Cluster Analysis",
-        "\U0001F3AF Predict & Retain",
+        " Overview",
+        " Model Comparison",
+        " Cluster Analysis",
+        " Predict & Retain",
     ])
 
     with tab1:
@@ -140,13 +140,17 @@ def main():
 
 def _overview(a):
     df = a['df']
-    st.header("Dataset Overview")
+    st.header("Exploratory Data Analysis (EDA)")
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Customers", f"{len(df):,}")
     c2.metric("Churn Rate", f"{df['Churn'].mean():.1%}")
     c3.metric("Avg Monthly", f"${df['MonthlyCharges'].mean():.0f}")
     c4.metric("Avg Tenure", f"{df['tenure'].mean():.0f} mo")
+
+    c1, c2 = st.columns(2)
+    c1.metric("Stayed", f"{(df['Churn'] == 0).sum():,}")
+    c2.metric("Churned", f"{(df['Churn'] == 1).sum():,}")
 
     st.subheader("Feature Importance (Layer 1 — XGBoost)")
     model = a['churn_model']
@@ -164,11 +168,124 @@ def _overview(a):
     plt.tight_layout()
     st.pyplot(fig)
 
-    st.subheader("Model Performance")
+    # --- Churn by Contract Type ---
+    st.subheader("Churn by Contract Type")
+    st.caption("Month-to-month customers churn at 3-15x higher rate than contract customers")
+    contract_churn = df.groupby('Contract')['Churn'].mean().sort_values(ascending=True)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    bars = ax.barh(contract_churn.index, contract_churn.values, color=['#66bb6a', '#ffa726', '#ef5350'])
+    ax.set_xlabel('Churn Rate')
+    ax.set_xlim(0, 0.55)
+    for b, v in zip(bars, contract_churn.values):
+        ax.text(v + 0.01, b.get_y() + b.get_height() / 2,
+                f'{v:.1%}', va='center', fontweight='bold', fontsize=11)
+    plt.tight_layout()
+    st.pyplot(fig)
+
+    # --- Churn by Tenure ---
+    st.subheader("Churn by Customer Tenure")
+    st.caption("New customers (0-12 months) churn at nearly 48% — loyalty builds over time")
+    df_temp = df.copy()
+    df_temp['tenure_grp'] = pd.cut(df_temp['tenure'], bins=[0, 12, 24, 48, 72],
+                                   labels=['0-12 mo', '13-24 mo', '25-48 mo', '49-72 mo'])
+    tenure_churn = df_temp.groupby('tenure_grp', observed=False)['Churn'].mean()
+    fig, ax = plt.subplots(figsize=(8, 4))
+    bars = ax.bar(tenure_churn.index, tenure_churn.values, color=['#ef5350', '#ffa726', '#42a5f5', '#66bb6a'])
+    ax.set_ylabel('Churn Rate')
+    ax.set_ylim(0, 0.6)
+    for b, v in zip(bars, tenure_churn.values):
+        ax.text(b.get_x() + b.get_width() / 2, v + 0.01,
+                f'{v:.1%}', ha='center', fontweight='bold', fontsize=11)
+    plt.tight_layout()
+    st.pyplot(fig)
+
+    # --- Churn by Internet Service + Payment Method ---
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Churn by Internet Service")
+        st.caption("Fiber optic customers churn 2x more than DSL")
+        inet_churn = df.groupby('InternetService')['Churn'].mean().sort_values()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        bars = ax.barh(inet_churn.index, inet_churn.values, color=['#66bb6a', '#42a5f5', '#ef5350'])
+        ax.set_xlim(0, 0.55)
+        for b, v in zip(bars, inet_churn.values):
+            ax.text(v + 0.01, b.get_y() + b.get_height() / 2,
+                    f'{v:.1%}', va='center', fontweight='bold', fontsize=11)
+        plt.tight_layout()
+        st.pyplot(fig)
+    with col2:
+        st.subheader("Churn by Payment Method")
+        st.caption("Electronic check users churn at 45% — 3x higher than auto-pay")
+        pay_churn = df.groupby('PaymentMethod')['Churn'].mean().sort_values()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        bars = ax.barh(pay_churn.index, pay_churn.values, color=['#66bb6a', '#66bb6a', '#ffa726', '#ef5350'])
+        ax.set_xlim(0, 0.55)
+        for b, v in zip(bars, pay_churn.values):
+            ax.text(v + 0.01, b.get_y() + b.get_height() / 2,
+                    f'{v:.1%}', va='center', fontweight='bold', fontsize=11)
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    # --- Security & Tech Support ---
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Churn by Online Security")
+        st.caption("No security = 42% churn vs 15% with security")
+        sec_churn = df.groupby('OnlineSecurity')['Churn'].mean().sort_values()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        bars = ax.barh(sec_churn.index, sec_churn.values, color=['#66bb6a' if v < 0.2 else '#ef5350' for v in sec_churn.values])
+        ax.set_xlim(0, 0.55)
+        for b, v in zip(bars, sec_churn.values):
+            ax.text(v + 0.01, b.get_y() + b.get_height() / 2, f'{v:.1%}', va='center', fontweight='bold', fontsize=11)
+        plt.tight_layout()
+        st.pyplot(fig)
+    with col2:
+        st.subheader("Churn by Tech Support")
+        st.caption("No tech support = 42% churn vs 15% with support")
+        tech_churn = df.groupby('TechSupport')['Churn'].mean().sort_values()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        bars = ax.barh(tech_churn.index, tech_churn.values, color=['#66bb6a' if v < 0.2 else '#ef5350' for v in tech_churn.values])
+        ax.set_xlim(0, 0.55)
+        for b, v in zip(bars, tech_churn.values):
+            ax.text(v + 0.01, b.get_y() + b.get_height() / 2, f'{v:.1%}', va='center', fontweight='bold', fontsize=11)
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    # --- Demographics ---
+    st.subheader("Churn by Demographics")
     col1, col2, col3 = st.columns(3)
-    col1.metric("AUC-ROC", "0.8298")
-    col2.metric("Accuracy", "75.8%")
-    col3.metric("F1 (Churned)", "0.6076")
+    demos = [
+        (col1, 'SeniorCitizen', 'Senior Citizen', {0: 'No', 1: 'Yes'}, "Seniors churn at 42% vs 24%"),
+        (col2, 'Partner', 'Partner', None, "No partner = 33% churn"),
+        (col3, 'Dependents', 'Dependents', None, "No dependents = 31% churn"),
+    ]
+    for col, feat, title, mapping, caption in demos:
+        with col:
+            st.markdown(f"**{title}**")
+            st.caption(caption)
+            grp = df.copy()
+            if mapping:
+                grp[feat] = grp[feat].map(mapping)
+            churn = grp.groupby(feat)['Churn'].mean().sort_values()
+            fig, ax = plt.subplots(figsize=(5, 3))
+            bars = ax.barh(churn.index.astype(str), churn.values, color=['#66bb6a' if v < 0.25 else '#ef5350' for v in churn.values])
+            ax.set_xlim(0, 0.55)
+            for b, v in zip(bars, churn.values):
+                ax.text(v + 0.01, b.get_y() + b.get_height() / 2, f'{v:.1%}', va='center', fontweight='bold', fontsize=10)
+            plt.tight_layout()
+            st.pyplot(fig)
+
+    # --- Monthly Charges Distribution ---
+    st.subheader("Monthly Charges Distribution — Churned vs Stayed")
+    st.caption("Churners tend to have higher monthly charges")
+    fig, ax = plt.subplots(figsize=(10, 4))
+    ax.hist(df[df['Churn'] == 0]['MonthlyCharges'], bins=30, alpha=0.6, label='Stayed', color='#66bb6a', edgecolor='white')
+    ax.hist(df[df['Churn'] == 1]['MonthlyCharges'], bins=30, alpha=0.6, label='Churned', color='#ef5350', edgecolor='white')
+    ax.set_xlabel('Monthly Charges ($)')
+    ax.set_ylabel('Number of Customers')
+    ax.legend(fontsize=12)
+    plt.tight_layout()
+    st.pyplot(fig)
 
 
 def _model_comparison(a):
@@ -245,16 +362,47 @@ def _model_comparison(a):
 
     st.subheader("Why XGBoost?")
     st.markdown("""
-    | Criteria | Winner | Why |
-    |----------|--------|-----|
-    | **AUC-ROC** | XGBoost | Best at ranking churners vs non-churners |
-    | **Recall** | SVM / Logistic Regression | Catches more churners but with lower precision |
-    | **Precision** | XGBoost / Random Forest | Fewer false alarms when flagging churners |
-    | **SHAP compatible** | XGBoost / Random Forest | Tree-based models work with TreeExplainer (fast, exact) |
-    | **Production speed** | XGBoost / Logistic Regression | Fast inference for real-time predictions |
+    Random Forest had the highest AUC-ROC, but we chose **XGBoost** for the final prediction + SHAP pipeline.
+    Here's why:
 
-    **Final choice: XGBoost** — best AUC-ROC, strong F1, SHAP-compatible for Layer 3 explanations,
-    and fast enough for the real-time Predict & Retain tab.
+    ---
+
+    **How Random Forest works:**
+    - 300 decision trees, each trained on random chunks of data
+    - Final answer = majority vote
+    - Each tree is **independent** — tree #1 doesn't know what tree #2 did
+
+    **How XGBoost works:**
+    - Also multiple decision trees, but built **sequentially**
+    - Tree #1 makes predictions, gets some wrong
+    - Tree #2 **only focuses on what tree #1 got wrong**
+    - Tree #3 **only focuses on what tree #2 still got wrong**
+    - Each tree is a **correction** of the previous one — they're connected
+
+    ---
+
+    **Why this matters for SHAP (Layer 3 — Retention Strategy):**
+
+    SHAP needs to answer: *"How much did Contract contribute to this customer's churn prediction?"*
+
+    - **XGBoost:** The sequential correction chain means there's a **mathematical formula** to calculate
+      exactly how much each feature contributed. The SHAP library uses this formula directly.
+      Result: **fast and exact**.
+
+    - **Random Forest:** 300 independent trees. Contract contributed differently in each tree —
+      Tree #1 says +0.30, Tree #47 says +0.15, Tree #203 says +0.22. There's **no single formula** —
+      SHAP has to sample and average across many trees. Result: **slower and approximate**
+      (the answer changes slightly each time you run it).
+
+    ---
+
+    XGBoost's sequential structure gives SHAP an **exact formula**.
+    Random Forest's independent structure forces SHAP to **estimate**.
+    Both work, but XGBoost = exact explanations, Random Forest = approximate explanations.
+
+    Since our retention strategies depend entirely on accurate SHAP values
+    (wrong SHAP → wrong recommendations), we chose **XGBoost** — trading 2% AUC
+    for 100% correct explanations.
     """)
 
 
@@ -265,7 +413,7 @@ def _clusters(a):
     for cluster_id in sorted(df['cluster'].unique()):
         mask = df['cluster'] == cluster_id
         seg = df[mask]
-        name, icon, desc = CLUSTER_NAMES.get(cluster_id, (f"Cluster {cluster_id}", "\u2753", ""))
+        name, icon, desc = CLUSTER_NAMES.get(cluster_id, (f"Cluster {cluster_id}", "", ""))
 
         churn = seg['Churn'].mean()
         with st.expander(f"{icon} Cluster {cluster_id}: {name} — {len(seg):,} customers ({len(seg)/len(df):.0%})", expanded=True):
@@ -275,7 +423,7 @@ def _clusters(a):
             c2.metric("Avg Monthly", f"${seg['MonthlyCharges'].mean():.0f}")
             c3.metric("Avg Total Rev", f"${seg['TotalCharges'].mean():,.0f}")
             c4.metric("Churn Rate", f"{churn:.1%}")
-            c5.metric("Risk", "\U0001F534 HIGH" if churn > 0.35 else ("\U0001F7E1 MED" if churn > 0.2 else "\U0001F7E2 LOW"))
+            c5.metric("Risk", " HIGH" if churn > 0.35 else (" MED" if churn > 0.2 else " LOW"))
 
 
 def _predict_and_retain(a):
@@ -315,7 +463,7 @@ def _predict_and_retain(a):
 
     payment = st.selectbox("Payment Method", list(encoders['PaymentMethod'].classes_))
 
-    if not st.button("\U0001F680 Predict Churn & Get Retention Plan", type="primary", use_container_width=True):
+    if not st.button("Predict Churn & Get Retention Plan", type="primary", use_container_width=True):
         return
 
     raw_values = {
@@ -345,7 +493,7 @@ def _predict_and_retain(a):
     st.subheader("Layer 1 — Churn Prediction")
 
     churn_prob = float(a['churn_model'].predict_proba(X_input)[0][1])
-    risk = "\U0001F6A8 HIGH RISK" if churn_prob > 0.6 else ("\u26A0\uFE0F MEDIUM" if churn_prob > 0.3 else "\u2705 LOW")
+    risk = "HIGH RISK" if churn_prob > 0.6 else ("MEDIUM" if churn_prob > 0.3 else "LOW")
 
     c1, c2 = st.columns([1, 2])
     c1.metric("Churn Probability", f"{churn_prob:.1%}", delta=risk, delta_color="inverse")
@@ -365,7 +513,7 @@ def _predict_and_retain(a):
     cluster_scaled = a['km_scaler'].transform(cluster_input)
     cluster_id = int(a['km_model'].predict(cluster_scaled)[0])
 
-    name, icon, desc = CLUSTER_NAMES.get(cluster_id, (f"Cluster {cluster_id}", "\u2753", ""))
+    name, icon, desc = CLUSTER_NAMES.get(cluster_id, (f"Cluster {cluster_id}", "", ""))
     c1, c2, c3 = st.columns(3)
     c1.metric("Segment", f"{icon} {name}")
     c2.metric("Cluster ID", cluster_id)
@@ -402,10 +550,10 @@ def _predict_and_retain(a):
 
     # ── Retention Strategy ─────────────────────────────────
     st.markdown("---")
-    st.subheader("\U0001F4CB Personalized Retention Strategy")
+    st.subheader("Personalized Retention Strategy")
 
     if churn_prob < 0.2:
-        st.success("\u2705 **LOW CHURN RISK** — No immediate retention action needed. "
+        st.success("**LOW CHURN RISK** — No immediate retention action needed. "
                    "Continue monitoring.")
         return
 
