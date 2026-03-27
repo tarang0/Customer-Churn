@@ -358,7 +358,13 @@ def _model_comparison(a):
     ax.set_title('Model Performance Radar', fontsize=14, fontweight='bold', pad=20)
     ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1), fontsize=9)
     plt.tight_layout()
-    st.pyplot(fig)
+    radar_path = 'artifacts/radar_chart.png'
+    fig.savefig(radar_path, dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image(radar_path, use_column_width=True)
 
     st.subheader("Why XGBoost?")
     st.markdown("""
