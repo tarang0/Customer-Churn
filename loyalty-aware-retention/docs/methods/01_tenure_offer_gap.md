@@ -1,4 +1,4 @@
-# Method 1 — Tenure-Offer Gap (TOG)
+# Method 1 — Tenure-Offer Gap
 
 ## What it is
 
@@ -20,12 +20,12 @@ This is the smell test. If the answer here were "no", we wouldn't need any of th
    - Average churn probability (how risky the group looks)
    - Average LTV (how much revenue they represent)
    - Average offer value (what the retention system would spend on them)
-4. Compute `TOG = avg_offer(shortest_quintile) / avg_offer(longest_quintile)`.
+4. Compute `Tenure-Offer Gap = avg_offer(shortest_quintile) / avg_offer(longest_quintile)`.
 
 Interpretation:
-- `TOG = 1.0` → offers are balanced across tenure
-- `TOG > 1.5` → loyalty penalty detected
-- `TOG > 2.0` → severe loyalty penalty
+- `Tenure-Offer Gap = 1.0` → offers are balanced across tenure
+- `Tenure-Offer Gap > 1.5` → loyalty penalty detected
+- `Tenure-Offer Gap > 2.0` → severe loyalty penalty
 
 ## What we found
 
@@ -39,7 +39,7 @@ At the realistic 0.5 retention threshold:
 | Q4 | 40–60 mo | 1,338 | 0.24 | $1,147 | $64 |
 | Q5 — loyals | 60–72 mo | 1,483 | 0.10 | $1,590 | **$20** |
 
-**TOG = 243 / 20 = 12.25**
+**Tenure-Offer Gap = 243 / 20 = 12.25**
 
 Newcomers are offered about 12× more retention money than the longest-tenured customers on average.
 

@@ -75,7 +75,7 @@ def main() -> None:
     print(f"  Avg offer across population:       ${scores['offer'].mean():.2f}")
 
     # --------------------------------------------------------------- M1
-    _banner("METHOD 1 — Tenure-Offer Gap (TOG)")
+    _banner("METHOD 1 — Tenure-Offer Gap")
     tog = tenure_offer_gap(df, scores)
     print("Group-level: average retention offer per tenure quintile.\n")
     print(f"{'Quintile':<22} {'N':>6} {'ChurnP':>8} {'LTV ($)':>10} {'Offer ($)':>12}")
@@ -86,13 +86,13 @@ def main() -> None:
         tog.per_quintile_mean_offer,
     ):
         print(f"{lbl:<22} {n:>6} {cp:>8.3f} {ltv:>10,.0f} {off:>12,.2f}")
-    print(f"\n  TOG = {tog.per_quintile_mean_offer[0]:.2f} / "
+    print(f"\n  Tenure-Offer Gap = {tog.per_quintile_mean_offer[0]:.2f} / "
           f"{tog.per_quintile_mean_offer[-1]:.2f}  =  {tog.tog_ratio:.2f}")
     print(f"  VERDICT: {tog.verdict}")
     plot_tog(tog)
 
     # --------------------------------------------------------------- M2
-    _banner("METHOD 2 — Counterfactual Tenure Flip (CTF)")
+    _banner("METHOD 2 — Counterfactual Tenure Flip")
     ctf = counterfactual_tenure_flip(
         df, churn_model, explainer, feature_cols, feat_names,
     )
@@ -183,12 +183,12 @@ def main() -> None:
     plot_cluster_equity(clu)
 
     # --------------------------------------------------------------- M5
-    _banner("METHOD 5 — Contract-controlled TOG (rules out confounding)")
+    _banner("METHOD 5 — Contract-controlled Tenure-Offer Gap (rules out confounding)")
     cc = contract_controlled_tog(df, scores)
     for contract, data in cc.per_contract.items():
         tog_str = "∞" if data["tog"] == float("inf") else f"{data['tog']:.2f}"
         offers_str = ", ".join(f"${v:.0f}" for v in data["mean_offer"])
-        print(f"  {contract:<18} tenure-tertile avg offers: {offers_str}   TOG = {tog_str}")
+        print(f"  {contract:<18} tenure-tertile avg offers: {offers_str}   Tenure-Offer Gap = {tog_str}")
     print(f"\n  VERDICT: {cc.verdict}")
     plot_contract_controlled(cc)
 
@@ -242,7 +242,7 @@ def main() -> None:
     _banner("SENSITIVITY — Is the finding fragile to our threshold choice?")
     ts = threshold_sensitivity(df, churn_model, explainer, feature_cols, feat_names)
     print(f"  {'threshold':>10} {'% targeted':>12} {'avg offer':>12} "
-          f"{'TOG':>8} {'% loyal offered':>18} {'% new offered':>15}")
+          f"{'T-O Gap':>8} {'% loyal offered':>18} {'% new offered':>15}")
     print("  " + "-" * 80)
     for t, tog_v, tg, mo, lp, np_ in zip(
         ts.thresholds, ts.tog, ts.pct_targeted, ts.mean_offer,
@@ -252,7 +252,7 @@ def main() -> None:
         marker = "  <-- default" if abs(t - DEFAULT_CHURN_MIN) < 1e-6 else ""
         print(f"  {t:>10.2f} {tg:>11.1f}% ${mo:>10.0f} "
               f"{tog_str:>8} {lp:>16.1f}% {np_:>13.1f}%{marker}")
-    print("\n  VERDICT: TOG grows monotonically with the threshold — the loyalty")
+    print("\n  VERDICT: Tenure-Offer Gap grows monotonically with the threshold — the loyalty")
     print("  penalty strengthens as the retention system becomes more selective.")
     print("  Our finding is robust to threshold choice.")
     plot_threshold_sensitivity(ts)
@@ -260,10 +260,11 @@ def main() -> None:
     # --------------------------------------------------------------- Summary
     _banner("SUMMARY — Loyalty Penalty Detection", char="#")
     rows = [
-        ("1. TOG (group-level)",             f"{tog.tog_ratio:.2f}",
+        ("1. Tenure-Offer Gap (group-level)",      f"{tog.tog_ratio:.2f}",
          tog.tog_ratio > 1.5),
-        ("2. CTF (per-customer)",            f"Δ=${ctf.mean_delta:.0f}, p={ctf.p_value:.2g}, "
-                                             f"{ctf.pct_penalised:.0f}% penalised",
+        ("2. Counterfactual Tenure Flip (per-customer)",
+         f"Δ=${ctf.mean_delta:.0f}, p={ctf.p_value:.2g}, "
+         f"{ctf.pct_penalised:.0f}% penalised",
          ctf.is_significant),
         ("3. Regression stage-1 (P any offer)",
          f"tenure coef = {reg.selection_coefs.get('tenure', 0):.3f}, "
@@ -272,7 +273,7 @@ def main() -> None:
          reg.selection_pvals.get("tenure", 1) < 0.05),
         ("4. Cluster equity",                f"verdict = {clu.verdict[:30]}...",
          "SUBSTANTIALLY" in clu.verdict or "LESS" in clu.verdict),
-        ("5. Contract-controlled TOG",       cc.verdict[:46],
+        ("5. Contract-controlled Tenure-Offer Gap", cc.verdict[:46],
          "PERSISTS" in cc.verdict),
         ("6. Victim predictor (AUC)",        f"AUC = {vp.auc:.3f}",
          vp.auc >= 0.7),

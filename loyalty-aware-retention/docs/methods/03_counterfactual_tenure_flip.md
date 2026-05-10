@@ -1,4 +1,4 @@
-# Method 3 — Counterfactual Tenure Flip (CTF)
+# Method 3 — Counterfactual Tenure Flip
 
 ## What it is
 

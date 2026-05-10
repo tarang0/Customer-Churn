@@ -1,10 +1,10 @@
-# Method 5 — Contract-Controlled TOG
+# Method 5 — Contract-Controlled Tenure-Offer Gap
 
 ## What it is
 
 A refinement of Method 1 that rules out a second natural defense: *"loyal customers get smaller offers because most of them are on 1-year or 2-year contracts, and contract type — not tenure — is what's really driving the difference."*
 
-We split the customer base by **contract type** first, then compute TOG separately within each contract group. If the tenure-offer gap persists within a single contract type, tenure is doing the work, not contract.
+We split the customer base by **contract type** first, then compute the Tenure-Offer Gap separately within each contract group. If the tenure-offer gap persists within a single contract type, tenure is doing the work, not contract.
 
 ## Why we need it
 
@@ -21,22 +21,22 @@ Method 5 directly tests this.
 ## How it works
 
 1. Split the population by `Contract`: Month-to-month, One year, Two year.
-2. For each contract subset, compute TOG using tenure tertiles (3 buckets, not 5, to keep cell counts reasonable).
-3. Check whether each subset's TOG exceeds 1.5.
+2. For each contract subset, compute the Tenure-Offer Gap using tenure tertiles (3 buckets, not 5, to keep cell counts reasonable).
+3. Check whether each subset's Tenure-Offer Gap exceeds 1.5.
 
-If TOG > 1.5 within a single contract type (customers who all have the same contract), the penalty is not explained by contract. It's explained by tenure.
+If the Tenure-Offer Gap is > 1.5 within a single contract type (customers who all have the same contract), the penalty is not explained by contract. It's explained by tenure.
 
 ## What we found
 
-| Contract | N | Tenure tertile avg offers | Within-group TOG |
+| Contract | N | Tenure tertile avg offers | Within-group Tenure-Offer Gap |
 |---|---|---|---|
 | Month-to-month | 3,875 | $253 / $213 / $158 | **1.60** |
 | One year | 1,473 | $15 / $28 / $34 | 0.45 |
 | Two year | 1,695 | $3 / $9 / $6 | 0.53 |
 
-**Key result.** Within month-to-month customers alone, TOG = 1.60 — the loyalty penalty persists. A month-to-month customer with 40 months of tenure gets, on average, a materially smaller offer than a month-to-month customer with 3 months of tenure. Since both groups have the same contract type, contract cannot be the thing driving the difference. Tenure is.
+**Key result.** Within month-to-month customers alone, the Tenure-Offer Gap = 1.60 — the loyalty penalty persists. A month-to-month customer with 40 months of tenure gets, on average, a materially smaller offer than a month-to-month customer with 3 months of tenure. Since both groups have the same contract type, contract cannot be the thing driving the difference. Tenure is.
 
-The 1-year and 2-year subsets show inverted TOGs (< 1), meaning within those groups, the already-tiny offers actually rise slightly with tenure. This is consistent with two things happening at once:
+The 1-year and 2-year subsets show inverted ratios (< 1), meaning within those groups, the already-tiny offers actually rise slightly with tenure. This is consistent with two things happening at once:
 - For customers on long-term contracts, churn probability is very low across all tenures, so almost nobody gets an offer (offers are around $10–$30 for everyone).
 - The small variation within those subsets is noise-dominated, not signal.
 
@@ -44,7 +44,7 @@ The month-to-month subset is where retention actions actually happen, and it's e
 
 ## Diagram
 
-![Contract-Controlled TOG](../../artifacts/plots/05_contract_controlled.png)
+![Contract-Controlled Tenure-Offer Gap](../../artifacts/plots/05_contract_controlled.png)
 
 ### How to read it
 

@@ -63,14 +63,14 @@ Looking at the middle and right panels together: **the cluster with the most to 
 
 ## Method 1 vs Method 2 — the direct comparison
 
-| | Method 1 (TOG) | Method 2 (Cluster Equity) |
+| | Method 1 (Tenure-Offer Gap) | Method 2 (Cluster Equity) |
 |---|---|---|
 | How it groups customers | By tenure quintile (1 dimension) | By K-Means cluster (7 dimensions) |
 | What it compares | Average offer per group | Spend ÷ LTV per group |
 | What it answers | "Does tenure predict smaller offers?" | "Do our most valuable customers get under-served per dollar of value?" |
 | Who it speaks to | Data scientists doing the audit | Executives, regulators, business stakeholders |
 | Can it separate "old and cheap" from "old and valuable"? | No — it lumps them together | Yes — Budget Basics is its own cluster |
-| Main finding | TOG = 12.25 (newcomers get 12× more) | 10× disparity in spend-per-LTV (Flight vs Premium) |
+| Main finding | Tenure-Offer Gap = 12.25 (newcomers get 12× more) | 10× disparity in spend-per-LTV (Flight vs Premium) |
 
 Both methods find the same loyalty penalty. Method 1 is simpler and frames it as "age bias". Method 2 is richer and frames it as "value mismatch". Having both means our finding survives under two different ways of defining customer groups.
 

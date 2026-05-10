@@ -2,12 +2,12 @@
 Streamlit page: Loyalty Penalty Audit.
 
 Method order (updated):
-  1. Tenure-Offer Gap (TOG)                — grouping by tenure
-  2. K-Means Cluster Equity                — grouping by behavior  (moved up)
-  3. Counterfactual Tenure Flip (CTF)      — per-person causal test
-  4. Two-Stage Regression Audit            — control for risk and value
-  5. Contract-Controlled TOG               — control for contract type
-  6. Victim Predictor                      — classifier for deployment
+  1. Tenure-Offer Gap                       — grouping by tenure
+  2. K-Means Cluster Equity                 — grouping by behavior  (moved up)
+  3. Counterfactual Tenure Flip             — per-person causal test
+  4. Two-Stage Regression Audit             — control for risk and value
+  5. Contract-Controlled Tenure-Offer Gap   — control for contract type
+  6. Victim Predictor                       — classifier for deployment
 """
 
 from __future__ import annotations
@@ -139,20 +139,25 @@ def main():
     a = _load_artifacts()
     df = a["df"]
 
+    # ----- Frozen parameter choices (derived from analysis; see docs/methods/README.md) -----
+    churn_min = 0.50         # retention firing threshold — chosen from sensitivity sweep
+    loyal_threshold = 48     # loyalty threshold (months) — within Simon-Kucher 2025 anchor range
+    synth_tenure = 3         # synthetic-twin tenure — arbitrary within newcomer range; finding robust
+
     with st.sidebar:
-        st.header("Audit settings")
-        churn_min = st.slider(
-            "Retention firing threshold P(churn)",
-            min_value=0.10, max_value=0.90, value=float(DEFAULT_CHURN_MIN), step=0.05,
-            help=(
-                "Customers with predicted churn probability below this value "
-                "are not targeted by the retention system. Default is 0.50 — "
-                "a realistic telecom retention cutoff."
-            ),
+        st.header("Parameter choices")
+        st.caption("Derived from analysis, not user-adjustable. See "
+                   "[docs/methods/README.md](docs/methods/README.md) for the full citations.")
+        st.markdown(
+            f"""
+- **Retention firing threshold:** `P(churn) ≥ {churn_min}`
+  *Industry-typical telecom cutoff; robustness verified across 0.10–0.80.*
+- **Loyalty threshold:** `tenure ≥ {loyal_threshold}` months
+  *Within the Simon-Kucher 2025 anchor (95% of CLTV from 3+ year customers).*
+- **Synthetic-twin tenure:** `{synth_tenure}` months
+  *Arbitrary within newcomer range; finding holds for 1–24 months (p < 10⁻⁸).*
+            """
         )
-        loyal_threshold = st.slider("Loyalty threshold (months)", 24, 72, 48, step=6)
-        synth_tenure = st.slider("Synthetic twin tenure (months)", 1, 24, 3)
-        st.caption("All three settings affect every method below.")
         st.markdown("---")
         st.markdown("### 📄 Method write-ups")
         st.markdown(
@@ -160,7 +165,7 @@ def main():
             "- [02 · Cluster Equity](docs/methods/02_cluster_equity.md)\n"
             "- [03 · Counterfactual Tenure Flip](docs/methods/03_counterfactual_tenure_flip.md)\n"
             "- [04 · Regression Audit](docs/methods/04_regression_audit.md)\n"
-            "- [05 · Contract-Controlled TOG](docs/methods/05_contract_controlled_tog.md)\n"
+            "- [05 · Contract-Controlled Tenure-Offer Gap](docs/methods/05_contract_controlled_tog.md)\n"
             "- [06 · Victim Predictor](docs/methods/06_victim_predictor.md)"
         )
 
@@ -310,7 +315,7 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
     with st.container(border=True):
         col_a, col_b = st.columns(2)
         with col_a:
-            st.markdown("**Method 1 — TOG (groups by tenure)**")
+            st.markdown("**Method 1 — Tenure-Offer Gap (groups by tenure)**")
             st.markdown(
                 "- Uses **1 variable** to group: `tenure`.\n"
                 "- 5 equal-size quintiles (oldest 20%, next 20%, ...).\n"
@@ -335,7 +340,7 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
 
     # -------- Method 1 --------
     def _m1_metrics(s):
-        s.metric("TOG ratio", f"{tog.tog_ratio:.2f}")
+        s.metric("Tenure-Offer Gap ratio", f"{tog.tog_ratio:.2f}")
         s.caption(
             f"Shortest quintile avg offer: **${tog.per_quintile_mean_offer[0]:.0f}**\n\n"
             f"Longest quintile avg offer: **${tog.per_quintile_mean_offer[-1]:.0f}**"
@@ -348,7 +353,7 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
         else:
             s.success("No group-level penalty.")
     _method_card(
-        number=1, name="Tenure-Offer Gap (TOG)",
+        number=1, name="Tenure-Offer Gap",
         plain_title="Group by tenure. Compare average offers.",
         plain_body=(
             "Sort all customers by tenure, cut into 5 equal groups (quintiles). "
@@ -359,7 +364,7 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
         ),
         technical_body=(
             "Tenure quintiles via `np.quantile([0, 0.2, 0.4, 0.6, 0.8, 1.0])`. "
-            "For each quintile q, M_q = mean(offer within q). TOG = M_0 / M_4. "
+            "For each quintile q, M_q = mean(offer within q). Tenure-Offer Gap = M_0 / M_4. "
             "Thresholds: > 1.5 flags a penalty, > 1.2 flags a mild one."
         ),
         chart_path=f"{PLOT_DIR}/01_tog.png",
@@ -439,7 +444,7 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
         else:
             s.success("No significant per-customer penalty.")
     _method_card(
-        number=3, name="Counterfactual Tenure Flip (CTF)",
+        number=3, name="Counterfactual Tenure Flip",
         plain_title="Compare each customer to their own synthetic twin.",
         plain_body=(
             "For each loyal customer, create an exact copy with only tenure changed "
@@ -513,28 +518,28 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
             return
         for contract, data in cc.per_contract.items():
             tog_str = "∞" if data["tog"] == float("inf") else f"{data['tog']:.2f}"
-            s.metric(f"TOG · {contract}", tog_str)
+            s.metric(f"Tenure-Offer Gap · {contract}", tog_str)
     def _m5_verdict(s):
         if "PERSISTS" in cc.verdict:
             s.error(cc.verdict)
         else:
             s.warning(cc.verdict)
     _method_card(
-        number=5, name="Contract-Controlled TOG",
+        number=5, name="Contract-Controlled Tenure-Offer Gap",
         plain_title="Does the penalty persist within a single contract type?",
         plain_body=(
             "Rules out the 'contract type is the real driver' defense. Loyal customers "
             "are mostly on long-term contracts, so contract and tenure are tangled. "
             "To untangle: split customers by contract (month-to-month, 1-year, 2-year) "
-            "and compute TOG **within each group separately**. If the penalty persists "
+            "and compute the Tenure-Offer Gap **within each group separately**. If the penalty persists "
             "inside a single contract type — where customers have the same contract "
             "status — then tenure is doing the work, not contract."
         ),
         technical_body=(
             "For each contract level, split the subset into tenure tertiles and compute "
-            "TOG within the subset. A within-group TOG > 1.5 confirms the penalty is "
+            "the Tenure-Offer Gap within the subset. A within-group Tenure-Offer Gap > 1.5 confirms the penalty is "
             "not fully mediated by contract. At the default threshold the penalty "
-            "persists within month-to-month customers (TOG ≈ 1.6), which is exactly "
+            "persists within month-to-month customers (Tenure-Offer Gap ≈ 1.6), which is exactly "
             "where the 'sleeping loyalist' victims live."
         ),
         chart_path=f"{PLOT_DIR}/05_contract_controlled.png",
@@ -567,7 +572,7 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
         plain_title="A classifier that identifies victims in advance.",
         plain_body=(
             "Train a logistic-regression classifier on the 2,303 loyal customers. "
-            "Input: the customer's 19 features. Output: 'is this customer a CTF victim?'. "
+            "Input: the customer's 19 features. Output: 'is this customer a loyalty-penalty victim?'. "
             "A high AUC means victims are a distinct, learnable subpopulation. "
             "A high precision@top-N means we can redirect retention budget toward the "
             "top-ranked predicted victims and expect most of that spend to go to "
@@ -597,7 +602,7 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
     st.header("5. Is the finding fragile to the threshold choice?")
     st.markdown(
         "A critic could say: *'your audit only works because of your 0.5 threshold.'* "
-        "To answer: re-run TOG at 8 different thresholds. If the penalty exists at all "
+        "To answer: re-run the Tenure-Offer Gap at 8 different thresholds. If the penalty exists at all "
         "of them, it's not a threshold artifact."
     )
     ts = _threshold_sweep(a)
@@ -606,13 +611,13 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
         "threshold":         ts.thresholds,
         "% targeted":        [f"{v:.1f}%" for v in ts.pct_targeted],
         "avg offer":         [f"${v:.0f}" for v in ts.mean_offer],
-        "TOG":               [f"{t:.2f}" if t != float("inf") else "∞" for t in ts.tog],
+        "Tenure-Offer Gap":  [f"{t:.2f}" if t != float("inf") else "∞" for t in ts.tog],
         "% loyal offered":   [f"{v:.1f}%" for v in ts.pct_loyal_offered],
         "% newcomers offered": [f"{v:.1f}%" for v in ts.pct_new_offered],
     })
     st.dataframe(sens_df, use_container_width=True, hide_index=True)
     st.success(
-        "**TOG grows monotonically with the threshold.** At every threshold tested "
+        "**Tenure-Offer Gap grows monotonically with the threshold.** At every threshold tested "
         "(0.1 → 0.8), the penalty is present, and it grows as the system becomes more "
         "selective. The finding is robust — not a threshold artifact."
     )
@@ -630,8 +635,8 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
     _image_if_exists(f"{PLOT_DIR}/08_agreement.png")
     st.dataframe(agree.round(3), use_container_width=True)
     st.info(
-        "TOG and Cluster Equity overlap heavily (~0.5) because both are group-based. "
-        "CTF picks up a different, smaller set — the 'sleeping loyalists' specifically. "
+        "The Tenure-Offer Gap and Cluster Equity overlap heavily (~0.5) because both are group-based. "
+        "The Counterfactual Tenure Flip picks up a different, smaller set — the 'sleeping loyalists' specifically. "
         "The methods are **complementary rather than duplicative** — a production "
         "system should combine multiple signals."
     )
@@ -643,17 +648,17 @@ Profile name: **"sleeping loyalists"**. Structurally exposed (no multi-year cont
     st.header("7. Summary scorecard")
     s_hit = (s1_ten < 0 and s1_p < 0.05) or (s2_ten < 0 and s2_p < 0.05)
     checks = [
-        ("1. TOG (group by tenure)",
-         f"TOG = {tog.tog_ratio:.2f}", tog.tog_ratio > 1.5),
+        ("1. Tenure-Offer Gap (group by tenure)",
+         f"Tenure-Offer Gap = {tog.tog_ratio:.2f}", tog.tog_ratio > 1.5),
         ("2. Cluster equity (group by behavior)",
          clu.verdict[:60] + ("…" if len(clu.verdict) > 60 else ""),
          "SUBSTANTIALLY" in clu.verdict),
-        ("3. CTF (per-customer)",
+        ("3. Counterfactual Tenure Flip (per-customer)",
          f"Δ=${ctf.mean_delta:.0f}, {ctf.pct_penalised:.0f}% penalized, p={ctf.p_value:.1g}",
          ctf.is_significant),
         ("4. Regression (two-stage)",
          f"S1 tenure coef = {s1_ten:.3f} (p={s1_p:.1g})", s_hit),
-        ("5. Contract-controlled TOG",
+        ("5. Contract-controlled Tenure-Offer Gap",
          cc.verdict[:60] + ("…" if len(cc.verdict) > 60 else ""),
          "PERSISTS" in cc.verdict),
         ("6. Victim predictor (AUC)",

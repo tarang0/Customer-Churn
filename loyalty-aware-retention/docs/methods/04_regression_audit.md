@@ -91,4 +91,4 @@ Two panels:
 
 Method 4 is the statistical proof that the loyalty penalty is not just risk-based targeting in disguise. Even after conditioning on churn probability and LTV, tenure independently and significantly pushes offers down in both stages.
 
-This matters for the thesis because it preempts the most likely critical objection. A reader who looks at Method 1 (TOG) and says "but those groups differ in risk, so of course offers differ" can't say the same about Method 4. The regression has already controlled for risk. The penalty is real, not an artifact of risk scoring.
+This matters for the thesis because it preempts the most likely critical objection. A reader who looks at Method 1 (Tenure-Offer Gap) and says "but those groups differ in risk, so of course offers differ" can't say the same about Method 4. The regression has already controlled for risk. The penalty is real, not an artifact of risk scoring.

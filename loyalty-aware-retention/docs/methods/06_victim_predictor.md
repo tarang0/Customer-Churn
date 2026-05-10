@@ -20,7 +20,7 @@ Method 6 is that tool.
 
 Yes. Explicitly, by construction.
 
-The classifier is trained only on the loyal subset — customers with tenure ≥ 48 months, verified in Section 2 of the audit UI (9.6% churn rate vs 26.5% population, 84.5% on long-term contracts, $4,641 avg revenue). Newcomers and mid-tenure customers are never in the training data. The output label is binary: 1 if CTF delta > 0 (victim loyalist), 0 otherwise (non-victim loyalist).
+The classifier is trained only on the loyal subset — customers with tenure ≥ 48 months, verified in Section 2 of the audit UI (9.6% churn rate vs 26.5% population, 84.5% on long-term contracts, $4,641 avg revenue). Newcomers and mid-tenure customers are never in the training data. The output label is binary: 1 if the Counterfactual Tenure Flip delta > 0 (victim loyalist), 0 otherwise (non-victim loyalist).
 
 So when the classifier flags a customer as a "likely victim", it's making a prediction about someone who is already a loyal customer and separating the subset of them who are being penalized from the subset who aren't.
 
@@ -43,7 +43,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 
 # X: 19 Telco features, only for customers with tenure >= 48 months
-# y: 1 if CTF delta > 0, else 0
+# y: 1 if Counterfactual Tenure Flip delta > 0, else 0
 
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.25, stratify=y, random_state=42,
@@ -121,7 +121,7 @@ Phase 3 is where we fix the loyalty penalty by redirecting retention budget. The
 2. Combine with LTV and cost assumptions to prioritize which customers should receive loyalty-aware retention offers.
 3. Allocate budget to the top-ranked customers, with the guarantee that at least 74% of the spend (at top-85) goes to real victims.
 
-Without Method 6, the fix would require running a CTF simulation for every customer at decision time — expensive, slow, and not something you'd deploy in a live CRM. With Method 6, victim identification is a single logistic-regression inference, which a CRM system can do in milliseconds.
+Without Method 6, the fix would require running a Counterfactual Tenure Flip simulation for every customer at decision time — expensive, slow, and not something you'd deploy in a live CRM. With Method 6, victim identification is a single logistic-regression inference, which a CRM system can do in milliseconds.
 
 ## Takeaway
 

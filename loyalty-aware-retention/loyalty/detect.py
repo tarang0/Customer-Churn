@@ -65,8 +65,8 @@ def tenure_offer_gap(df: pd.DataFrame, scores: pd.DataFrame) -> TOGResult:
 
     tog = float("inf") if mo[-1] == 0 else mo[0] / mo[-1]
     verdict = (
-        "LOYALTY PENALTY DETECTED (TOG > 1.5)" if tog > 1.5
-        else "Mild loyalty penalty (1.2 < TOG <= 1.5)" if tog > 1.2
+        "LOYALTY PENALTY DETECTED (Tenure-Offer Gap > 1.5)" if tog > 1.5
+        else "Mild loyalty penalty (1.2 < Tenure-Offer Gap ≤ 1.5)" if tog > 1.2
         else "No meaningful loyalty penalty at group level"
     )
     return TOGResult(edges, labels, mo, ml, mp, ns, tog, verdict)
@@ -556,8 +556,8 @@ def cross_method_agreement(
     )
 
     sets = {
-        "CTF victims": ctf_victims,
-        "TOG top-quintile (offer=0)": tog_flagged,
+        "Counterfactual Tenure Flip victims": ctf_victims,
+        "Tenure-Offer Gap top-quintile (offer=0)": tog_flagged,
         "Premium cluster (offer=0)": cluster_flagged,
     }
     names = list(sets)

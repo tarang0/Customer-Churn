@@ -55,7 +55,7 @@ def plot_tog(r: TOGResult, path: str = f"{PLOT_DIR}/01_tog.png") -> str:
         axes[2].text(i, v + 0.02, f"{v:.2f}", ha="center", fontweight="bold")
 
     fig.suptitle(
-        f"METHOD 1 — Tenure-Offer Gap (TOG = {r.tog_ratio:.2f})",
+        f"METHOD 1 — Tenure-Offer Gap = {r.tog_ratio:.2f}",
         fontsize=15, fontweight="bold",
     )
     plt.tight_layout()
@@ -232,13 +232,13 @@ def plot_contract_controlled(
         ax.bar(labels, data["mean_offer"], color="#7E57C2", edgecolor="white")
         tog_v = data["tog"]
         tog_str = "∞" if tog_v == float("inf") else f"{tog_v:.2f}"
-        ax.set_title(f"{contract}  (TOG = {tog_str})", fontweight="bold")
+        ax.set_title(f"{contract}  (Tenure-Offer Gap = {tog_str})", fontweight="bold")
         ax.set_ylabel("Avg offer ($)")
         for i, v in enumerate(data["mean_offer"]):
             ax.text(i, v + max(data["mean_offer"]) * 0.02, f"${v:.0f}",
                     ha="center", fontweight="bold")
 
-    fig.suptitle("METHOD 5 — Contract-controlled TOG  (rules out confounding)",
+    fig.suptitle("METHOD 5 — Contract-controlled Tenure-Offer Gap  (rules out confounding)",
                  fontsize=14, fontweight="bold")
     plt.tight_layout()
     fig.savefig(path, dpi=130, bbox_inches="tight")
@@ -257,7 +257,7 @@ def plot_victim_predictor(
     fig, axes = plt.subplots(1, 2, figsize=(15, 5))
 
     axes[0].barh(top.index, top.values, color="#26A69A", edgecolor="white")
-    axes[0].set_title("Top-10 features for predicting CTF victims", fontweight="bold")
+    axes[0].set_title("Top-10 features for predicting loyalty-penalty victims", fontweight="bold")
     axes[0].set_xlabel("|logistic-regression coefficient|")
 
     metrics_labels = ["AUC", "Accuracy", f"Precision@{r.top_n}", f"Recall@{r.top_n}"]
@@ -355,19 +355,19 @@ def plot_agreement(
 def plot_threshold_sensitivity(r, path: str = f"{PLOT_DIR}/09_threshold_sensitivity.png") -> str:
     fig, axes = plt.subplots(1, 2, figsize=(16, 5))
 
-    # Left: TOG vs threshold
+    # Left: Tenure-Offer Gap vs threshold
     ax = axes[0]
     tog_plot = [t if t != float("inf") else max(x for x in r.tog if x != float("inf")) * 1.2 for t in r.tog]
     ax.plot(r.thresholds, tog_plot, marker="o", lw=2, color="#EF5350",
-            markersize=9, label="TOG ratio")
-    ax.axhline(1.0, color="black", lw=1, ls=":", alpha=0.5, label="TOG = 1 (equal)")
+            markersize=9, label="Tenure-Offer Gap ratio")
+    ax.axhline(1.0, color="black", lw=1, ls=":", alpha=0.5, label="Tenure-Offer Gap = 1 (equal)")
     ax.axhline(1.5, color="orange", lw=1, ls="--", alpha=0.6, label="penalty threshold (1.5)")
     ax.axvline(r.default_threshold, color="#1E88E5", lw=2, ls="--", alpha=0.6,
                label=f"our default ({r.default_threshold:.2f})")
     for x, y in zip(r.thresholds, tog_plot):
         ax.text(x, y + 0.4, f"{y:.1f}", ha="center", fontweight="bold", fontsize=9)
     ax.set_xlabel("Churn-probability threshold for firing retention action")
-    ax.set_ylabel("Tenure-Offer Gap (TOG)")
+    ax.set_ylabel("Tenure-Offer Gap")
     ax.set_title("Loyalty penalty persists AND strengthens as threshold rises",
                  fontweight="bold")
     ax.grid(alpha=0.3)
@@ -388,6 +388,201 @@ def plot_threshold_sensitivity(r, path: str = f"{PLOT_DIR}/09_threshold_sensitiv
 
     fig.suptitle("Threshold sensitivity — is our finding fragile to the 0.5 choice?",
                  fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Mitigation plots
+# ---------------------------------------------------------------------------
+
+def plot_mitigation_quintiles(result, path: str = f"{PLOT_DIR}/10_mitigation_quintiles.png"):
+    before = result.mean_offer_by_quintile_before
+    after = result.mean_offer_by_quintile_after
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    x = np.arange(len(before))
+    w = 0.4
+    ax.bar(x - w / 2, before, w, label="Before (baseline)", color="#EF5350", edgecolor="white")
+    ax.bar(x + w / 2, after, w, label=f"After ({result.decision.strategy})",
+           color="#66BB6A", edgecolor="white")
+    for i, (b, a) in enumerate(zip(before, after)):
+        ax.text(i - w / 2, b + max(before + after) * 0.01, f"${b:.0f}",
+                ha="center", fontsize=9, fontweight="bold")
+        ax.text(i + w / 2, a + max(before + after) * 0.01, f"${a:.0f}",
+                ha="center", fontsize=9, fontweight="bold")
+
+    quintile_labels = ["Q1 (newest)", "Q2", "Q3", "Q4", "Q5 (most loyal)"]
+    ax.set_xticks(x)
+    ax.set_xticklabels(quintile_labels)
+    ax.set_ylabel("Average offer ($)")
+    tog_before = result.tog_before
+    tog_after = result.tog_after
+    tb = "∞" if tog_before == float("inf") else f"{tog_before:.2f}"
+    ta = "∞" if tog_after == float("inf") else f"{tog_after:.2f}"
+    ax.set_title(f"Offer distribution: before (Tenure-Offer Gap = {tb}) vs after (Tenure-Offer Gap = {ta})",
+                 fontweight="bold")
+    ax.legend()
+    plt.tight_layout()
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def plot_mitigation_cluster_equity(result, path: str = f"{PLOT_DIR}/11_mitigation_cluster.png"):
+    clusters = sorted(result.cluster_equity_before)
+    before = [result.cluster_equity_before[c] for c in clusters]
+    after = [result.cluster_equity_after[c] for c in clusters]
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    x = np.arange(len(clusters))
+    w = 0.4
+    ax.bar(x - w / 2, before, w, label="Before", color="#EF5350", edgecolor="white")
+    ax.bar(x + w / 2, after, w, label=f"After ({result.decision.strategy})",
+           color="#66BB6A", edgecolor="white")
+    for i, (b, a) in enumerate(zip(before, after)):
+        mx = max(before + after) if (before + after) else 1.0
+        ax.text(i - w / 2, b + mx * 0.01, f"${b:.2f}", ha="center", fontsize=9,
+                fontweight="bold")
+        ax.text(i + w / 2, a + mx * 0.01, f"${a:.2f}", ha="center", fontsize=9,
+                fontweight="bold")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"Cluster {c}" for c in clusters])
+    ax.set_ylabel("Retention spend per $100 LTV")
+    ax.set_title("Cluster equity: before vs after mitigation", fontweight="bold")
+    ax.legend()
+    plt.tight_layout()
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def plot_pareto_frontier(points, path: str = f"{PLOT_DIR}/12_pareto_frontier.png"):
+    import pandas as pd
+    df = pd.DataFrame([p.__dict__ for p in points])
+
+    fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+
+    # Left — trade-off
+    tog = df["tog_after"].replace(float("inf"), np.nan)
+    axes[0].plot(df["ltv_at_risk_touched"] / 1000, tog,
+                 marker="o", lw=2, color="#AB47BC", markersize=9)
+    for _, r in df.iterrows():
+        tt = "∞" if r["tog_after"] == float("inf") else f"{r['tog_after']:.1f}"
+        axes[0].annotate(
+            f"λ={r['lam']:.1f}\nTOG={tt}",
+            (r["ltv_at_risk_touched"] / 1000, r["tog_after"]),
+            fontsize=8, xytext=(5, 5), textcoords="offset points",
+        )
+    axes[0].set_xlabel("LTV-at-risk touched ($k) [not 'saved' — just 'contacted']")
+    axes[0].set_ylabel("Tenure-Offer Gap after mitigation (lower = more fair)")
+    axes[0].set_title("Trade-off: reach of high-risk LTV vs loyalty fairness",
+                      fontweight="bold")
+    axes[0].grid(alpha=0.3)
+
+    # Right — coverage
+    axes[1].plot(df["lam"], df["pct_victims_reached"], marker="o", lw=2,
+                 color="#EF5350", label="% victims reached")
+    axes[1].plot(df["lam"], df["pct_loyals_reached"], marker="s", lw=2,
+                 color="#2E7D32", label="% loyals reached")
+    axes[1].set_xlabel("λ (loyalty weight)")
+    axes[1].set_ylabel("% of group receiving any offer")
+    axes[1].set_title("Coverage as λ grows", fontweight="bold")
+    axes[1].legend()
+    axes[1].grid(alpha=0.3)
+
+    plt.tight_layout()
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def plot_tradeoff_curves(points, sweet_idx: int,
+                          path: str = f"{PLOT_DIR}/13_tradeoff_curves.png"):
+    """
+    The core tradeoff figure for the thesis.
+
+    Four panels showing, as λ sweeps:
+      (a) High-churn customers reached — DOWN (we reach fewer churners)
+      (b) Avg LTV of selected customers — UP (quality of who we target rises)
+      (c) TOG — DOWN (fairness improves)
+      (d) Composite score — shows the sweet spot
+    """
+    import pandas as pd
+    df = pd.DataFrame([p.__dict__ for p in points])
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+    fig.suptitle(
+        "The core trade-off: raw churn reach ↓  vs  customer value reach ↑  vs  fairness ↑",
+        fontsize=14, fontweight="bold", y=1.00,
+    )
+
+    lams = df["lam"].values
+    sweet_lam = points[sweet_idx].lam
+
+    # (a) % high-churn reached (goes down)
+    ax = axes[0, 0]
+    ax.plot(lams, df["pct_high_churn_reached"], marker="o", lw=2,
+            color="#EF5350", markersize=8)
+    ax.axvline(sweet_lam, color="green", ls="--", alpha=0.5,
+               label=f"sweet spot λ={sweet_lam}")
+    ax.set_xlabel("λ (loyalty weight)")
+    ax.set_ylabel("% of high-churn (P>0.5) customers reached")
+    ax.set_title("(a) Raw churn-at-risk coverage falls as λ grows",
+                 fontweight="bold")
+    ax.grid(alpha=0.3)
+    ax.legend()
+    for x, y in zip(lams, df["pct_high_churn_reached"]):
+        ax.text(x, y + 1, f"{y:.0f}%", ha="center", fontsize=8)
+
+    # (b) Avg LTV of selected (goes up)
+    ax = axes[0, 1]
+    ax.plot(lams, df["avg_ltv_of_selected"], marker="o", lw=2,
+            color="#2E7D32", markersize=8)
+    ax.axvline(sweet_lam, color="green", ls="--", alpha=0.5)
+    ax.set_xlabel("λ (loyalty weight)")
+    ax.set_ylabel("Avg LTV of selected customers ($)")
+    ax.set_title("(b) Customer-value quality RISES as λ grows",
+                 fontweight="bold")
+    ax.grid(alpha=0.3)
+    for x, y in zip(lams, df["avg_ltv_of_selected"]):
+        ax.text(x, y + 20, f"${y:.0f}", ha="center", fontsize=8)
+
+    # (c) TOG (goes down → more fair)
+    ax = axes[1, 0]
+    tog = df["tog_after"].replace(float("inf"), np.nan)
+    ax.plot(lams, tog, marker="o", lw=2, color="#AB47BC", markersize=8)
+    ax.axhline(1.5, color="orange", ls=":", alpha=0.6,
+               label="loyalty-penalty threshold (1.5)")
+    ax.axvline(sweet_lam, color="green", ls="--", alpha=0.5)
+    ax.set_xlabel("λ (loyalty weight)")
+    ax.set_ylabel("Tenure-Offer Gap after mitigation")
+    ax.set_title("(c) Fairness (lower Tenure-Offer Gap is better)", fontweight="bold")
+    ax.grid(alpha=0.3)
+    ax.legend()
+    for x, y in zip(lams, tog):
+        if not np.isnan(y):
+            ax.text(x, y + 0.2, f"{y:.2f}", ha="center", fontsize=8)
+
+    # (d) Composite score
+    ax = axes[1, 1]
+    comp = df["composite_score"].values
+    colors = ["#66BB6A" if i == sweet_idx else "#42A5F5" for i in range(len(lams))]
+    ax.bar(lams, comp, color=colors, edgecolor="white", width=0.15)
+    ax.axvline(sweet_lam, color="green", ls="--", alpha=0.5)
+    ax.set_xlabel("λ (loyalty weight)")
+    ax.set_ylabel("Composite score (higher is better)")
+    ax.set_title(
+        f"(d) Sweet spot: composite of fairness × quality × victim-reach\n"
+        f"Best at λ={sweet_lam} with score {comp[sweet_idx]:.3f}",
+        fontweight="bold",
+    )
+    ax.grid(alpha=0.3, axis="y")
+    for x, y in zip(lams, comp):
+        ax.text(x, y + 0.01, f"{y:.2f}", ha="center", fontsize=8)
+
     plt.tight_layout()
     fig.savefig(path, dpi=130, bbox_inches="tight")
     plt.close(fig)
