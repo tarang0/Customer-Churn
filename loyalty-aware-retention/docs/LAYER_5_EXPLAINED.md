@@ -248,3 +248,86 @@ Yes. Every new customer gets `P(churn)`, `P(victim)`, and `LTV` computed from La
 ## 14. One-line pitch
 
 > Layer 5 takes the loyalty-penalty evidence from Layer 4 and builds a deployable policy: same budget, a single tunable λ = 0.25, a transparent greedy knapsack. Result — the Tenure-Offer Gap drops from 12.25 to 1.31, the customers being served have 2.79× more lifetime value on average, and four times more loyal customers are reached. No change to the underlying churn model, no A/B claim we can't back up, no hidden parameters.
+
+
+## 15. The Pareto frontier (the "is λ = 0.25 really the best" question)
+
+### What is a Pareto frontier?
+
+A Pareto frontier is an economist's idea. Imagine you have two goals that pull against each other — say, **fairness** and **churn coverage**. No single setting can maximise both. Every setting gives you some amount of fairness and some amount of coverage. If you plot all these settings on a chart (fairness on one axis, coverage on the other), the "Pareto frontier" is the curve of settings where you can't improve one metric without sacrificing the other. It is the set of **honest trade-offs**.
+
+Anything *inside* the frontier is a bad choice — you could do strictly better on both axes. Anything *on* the frontier is a legitimate choice — the right one depends on how you weigh the two goals.
+
+### Why we need it here
+
+Layer 5 has exactly this pull-against tension:
+
+- **Fairness** (lower Tenure-Offer Gap) wants high λ — push offers toward loyal customers.
+- **Churn coverage** (reach more at-risk customers) wants low λ — do what the baseline already does.
+
+Is λ = 0.25 *really* the right spot on that curve? Or did we pick something arbitrary and justify it afterward? The Pareto analysis answers this.
+
+### What we actually do — the two sweeps
+
+We sweep λ across a range of values and, at each λ, re-run the allocator and measure all the output metrics. Then we plot them.
+
+**Sweep 1 — coarse Pareto sweep** (`pareto_frontier_lambda`)
+Runs λ ∈ {0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0}. Logs the trade-off between:
+
+- Tenure-Offer Gap after mitigation (lower = more fair)
+- Average LTV of selected customers
+- Percentage of victims reached
+- Percentage of loyalists reached
+- LTV-at-risk touched (how much expected revenue is covered)
+
+The output is saved to figure **`12_pareto_frontier.png`**. This is the classic two-axis Pareto plot: fairness on one axis, business outcome on the other, each point a different λ.
+
+**Sweep 2 — detailed sweep with composite score** (`detailed_pareto_sweep`)
+A finer grid: λ ∈ {0, 0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0}. For each λ, computes three normalised sub-scores:
+
+- `fairness_score` = min_TOG_achievable / TOG_at_this_lambda (higher = more fair)
+- `quality_score` = avg_LTV / max_avg_LTV (higher = better customer base)
+- `victim_coverage_score` = pct_victims / max_pct_victims (higher = more victims reached)
+
+Then combines them with a geometric mean (cube root of the product):
+
+```
+composite_score = (fairness × quality × victim_coverage) ^ (1/3)
+```
+
+The λ with the maximum composite score is the "sweet spot" — the single point on the Pareto frontier that is closest to being best-on-all-three-axes simultaneously. This picks **λ = 0.25** on our data, with composite 0.967.
+
+The output is saved to figure **`13_tradeoff_curves.png`** — four small panels:
+
+- (a) High-churn coverage as λ grows (falls — this is the cost)
+- (b) Average LTV of selected customers (rises — this is the gain)
+- (c) Tenure-Offer Gap (falls — fairness improves)
+- (d) Composite score bar chart with the sweet-spot λ highlighted in green
+
+### Why a geometric mean for the composite score?
+
+Arithmetic mean would let one metric completely dominate — for example, extreme fairness at the cost of zero customer quality would still score highly. Geometric mean (cube root of the product) **punishes any single metric being near zero**, which enforces that the sweet spot must be good on all three dimensions, not great on one and terrible on the others.
+
+### Simple analogy
+
+Imagine picking a pizza. You care about **taste**, **price**, and **size**. The Pareto frontier is the menu of pizzas where you can't get better taste without paying more or getting smaller, and vice versa. The cheapest pizza might be inedible; the tastiest might be tiny; the biggest might cost $50. The sweet spot is the pizza that scores decently on all three. That is what the composite-score sweep picks for us — the "decent on all three axes" λ.
+
+### Why this is the honest way to justify λ = 0.25
+
+Without the Pareto sweep, "we chose λ = 0.25" is just a number in the code. With the Pareto sweep:
+
+- We show the **entire trade-off space** — every λ we tried and what it got us.
+- We show the sweet spot is **not a knife-edge** — nearby values like 0.1 and 0.5 also score well, so tiny measurement noise won't flip the result.
+- We show the chosen λ is **stable across thresholds** — at threshold 0.50, 0.60, and 0.70 the best λ is all 0.25.
+- We prove we did not cherry-pick: if λ = 0.25 looked great only because we ran it once, the sweep would show a much better λ elsewhere. It doesn't.
+
+### Where the Pareto output lands in the thesis
+
+For the presentation, two places:
+
+- **Figure 13 (`13_tradeoff_curves.png`)** — shows the trade-off is real (panels a, b, c move in opposite directions) and pinpoints the composite peak. This is the chart that answers "why 0.25 and not 0 or 5?"
+- **Figure 14 (`14_heatmap_composite.png`)** — the 2D composite-score heatmap across both threshold and λ. Proves the sweet spot is stable as the threshold tightens, so the choice isn't a one-off accident at threshold 0.50.
+
+### One-line summary
+
+> The Pareto sweep makes the choice of λ = 0.25 defensible. We don't just say "0.25 works" — we show the full trade-off curve, the composite score peaking at 0.25, and that nearby values degrade gracefully. That is why Figure 13 is the single most important chart for justifying Layer 5's parameter choice.
